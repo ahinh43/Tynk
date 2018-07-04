@@ -273,4 +273,4 @@ async def on_ready():
         print('Bot startup process is complete, or the bots are already online.')
         await client.change_presence(game=discord.Game(name='Cluster status: Active Node', status=discord.Status.online))
     print('------')
-client.run('NDYzMDk5NjIxMjI1NTI5MzQ1.Dhrfpw.VFUvRJelo6xRMZ76jdADh96FeOc')
+client.run('')
