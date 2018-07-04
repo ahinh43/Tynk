@@ -190,10 +190,8 @@ async def on_member_update(before, after):
             pass
     
 # When the node starts, it will check the status of the bots it is responsible for.
-# First, it will prioritize checking for Rubert. As the Rubert node has priority for running the bots, it will check for Rubert's status first.
-# In the event that Rubert is down, it will wait 30 seconds before checking again.
-# After about 10 iterations, it will start the bots on its own after checking their status.
-# If Rubert is online and everything is running, it will standby as failover waiting for the other node to go down.
+# If the other node is active, it will wait for that node to come online.
+# If the other node does not come online within the alloted time, then it will take over as the active node then start the bots on its own.
 @client.event
 async def on_ready():
     global clusteredBots
