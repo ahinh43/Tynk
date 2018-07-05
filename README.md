@@ -3,4 +3,8 @@ A Discord bot that provides other bots higher stability with status checking on 
 
 The folder also contains a powershell script that is meant to be run periodically to check if the script is still running on the machine or not. 
 
+System requirements:
+Windows based operating system (Server or pc version)
+At least Python 3.6 with discord.py wrapper installed.
+
 Note: This code is for reference. Some of the parts may be modified and can be run on other servers, but I do not guarantee anything will work or not.
