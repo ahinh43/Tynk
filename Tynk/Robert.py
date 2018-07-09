@@ -1,9 +1,13 @@
+# Tynk Cluster Project. Node 1. Codename: Robert
+# This bot is designed to run alongside Robert on a different machine. Any node may be run on either the same network or a different network as long as there is a connection to discordapp.com
+
 import discord
 import os
 import asyncio
 import time
-import serverMatch
 import traceback
+import serverMatch
+import sys
 
 
 client = discord.Client()
@@ -27,16 +31,19 @@ otherNodeID = '463099719690878987'
 otherNode = 'Rubert'
 activeNodeCode = '2'
 selfNode = 'Robert'
+ownerID = ''
 
-
+# Some commands to debug, and shutdown the node.
 @client.event
 async def on_message(message):
     global activeNodeCode
     global selfNode
     global otherNode
+    global ownerID
     offlineRole = discord.utils.get(client.get_server(controlServerID).roles, id='370340076527288321')
+    restartRole = discord.utils.get(client.get_server(controlServerID).roles, id='370339592055947266')
     if message.content.lower().startswith(f'{selfNode.lower()}.eval'):
-        if message.author.id == '153273725666590720':
+        if message.author.id == ownerID:
             userstr = message.content
             userstr = userstr.replace(f"{selfNode.lower()}.eval", "")
             try:
@@ -55,30 +62,37 @@ async def on_message(message):
         else:
             await client.send_message(message.channel, 'No.')
     elif message.content.lower() == f'{selfNode.lower()}.shutdown':
-        if message.author.id == '153273725666590720':
+        if message.author.id == ownerID:
             await client.send_message(client.get_channel('322466466479734784'), f'{selfNode} is {offlineRole.mention}')
             await client.logout()
         else:
             await client.send_message(message.channel, 'CANT LET YOU DO THAT, STARFOX.')
     elif message.content.lower() == f'{selfNode.lower()}.setactive':
-        if message.author.id == '153273725666590720':
+        if message.author.id == ownerID:
             wr = open('activeNode.txt', 'w')
             wr.seek(0)
             wr.truncate()
             wr.write(activeNodeCode)
             wr.close()
             await client.send_message(client.get_channel(controlServerChannel), 'Set as active node.')
+            print (f'Manual command by {message.author.name} has been given. Setting node to Active')
             await client.change_presence(game=discord.Game(name='Cluster status: Active Node', status=discord.Status.online))
         else:
             await client.send_message(message.channel, 'CANT LET YOU DO THAT, STARFOX.')
+    elif message.content.lower() == f'{selfNode.lower()}.restart' or message.content.lower() == 'tynk.restart':
+        if message.author.id == ownerID:
+            await client.send_message(client.get_channel(controlServerChannel), f'{selfNode} is now {restartRole.mention}')
+            print (f'Restart command issued by {message.author.name}. Restarting...')
+            os.execl(sys.executable, *([sys.executable]+sys.argv))
     elif message.content.lower() == f'{otherNode.lower()}.setactive':
-        if message.author.id == '153273725666590720':
+        if message.author.id == ownerID:
             await client.send_message(client.get_channel(controlServerChannel), f'{otherNode} activated as active node. Setting status to failover...')
+            print (f'Manual command by {message.author.name} has been given. Setting node to Failover')
             await client.change_presence(game=discord.Game(name='Cluster status: Failover Node', status=discord.Status.online))
         else:
             await client.send_message(message.channel, 'CANT LET YOU DO THAT, STARFOX.')
     elif message.content.lower() == 'tynk.shutdown':
-        if message.author.id == '153273725666590720':
+        if message.author.id == ownerID:
             await client.send_message(client.get_channel('322466466479734784'), f'{selfNode} is {offlineRole.mention}')
             await client.logout()
         else:
@@ -95,6 +109,7 @@ async def on_member_update(before, after):
     global otherNode
     global activeNodeCode
     alertRole = discord.utils.get(client.get_server(controlServerID).roles, id='385962440397160448') 
+    isOtherNodeOffline = False
     if before.id in clusteredBots or before.id == otherNodeID:
         with open('activeNode.txt') as f:
             activeNode = f.readline()
@@ -102,9 +117,12 @@ async def on_member_update(before, after):
         # Another node is down, and the active node is not this one.
         # Waits for the other node to come up. If the other node does not come up, changes activeNode to this host's code and attempts to start the bot.
         if client.get_server(controlServerID).get_member(otherNodeID).status != 'online' and activeNode != activeNodeCode and str(before.status) == 'online' and str(after.status) != 'online' and before.id != otherNodeID:
-            await client.send_message(client.get_channel(controlServerChannel), f'{otherNode} is offline, waiting to see if {otherNode} will come back online...')
+            if str(client.get_server(controlServerID).get_member(otherNodeID).status) != 'online':
+                isOtherNodeOffline = True
+                await client.send_message(client.get_channel(controlServerChannel), f'{otherNode} is offline, waiting to see if {otherNode} will come back online...')
             for index in range (0,10):
-                if str(client.get_server(controlServerID).get_member(otherNodeID).status) == 'online':
+                if str(client.get_server(controlServerID).get_member(otherNodeID).status) == 'online' and isOtherNodeOffline == True:
+                    isOtherNodeOffline = False
                     await client.send_message(client.get_channel(controlServerChannel), f'{otherNode} node has come back online. Standing by as failover...')
                     break
                 elif index == 9:
@@ -114,6 +132,7 @@ async def on_member_update(before, after):
                     wr.truncate()
                     wr.write(activeNodeCode)
                     wr.close()
+                    print (f'{otherNode} has timed out. Switching to active node')
                     for index in range(len(clusteredBots)):
                         try:
                             if str(client.get_server(controlServerID).get_member(clusteredBots[index]).status) == 'online':
@@ -143,14 +162,14 @@ async def on_member_update(before, after):
             pass
         elif before.id == otherNodeID and str(before.status) == 'online' and str(after.status) != 'online':
             await client.send_message(client.get_channel(controlServerChannel), f'{alertRole.mention} {otherNode} node has gone offline.')
-            if activeNode != '2':
+            if activeNode != activeNodeCode:
                 for i in range (0,10):
                     if str(client.get_server(controlServerID).get_member(otherNodeID).status) == 'online':
                         print (f'{otherNode} node has came back online. Maintaining Failover status')
                         break
                     else:
                         print ('Iteration ' + str(i) + ' has been reached.')
-                        await asyncio.sleep(3)
+                        await asyncio.sleep(10)
                     if i == 5:
                         await client.send_message(client.get_channel(controlServerChannel), f'{alertRole.mention} {otherNode} hasn''t returned online for a while. Taking over as active node.')
                         wr = open('activeNode.txt', 'w')
@@ -158,6 +177,27 @@ async def on_member_update(before, after):
                         wr.truncate()
                         wr.write(activeNodeCode)
                         wr.close()
+                        print (f'{otherNode} has timed out. Switching to active node')
+                        for index in range(len(clusteredBots)):
+                            try:
+                                if str(client.get_server(controlServerID).get_member(clusteredBots[index]).status) == 'online':
+                                    pass
+                                elif str(client.get_server(controlServerID).get_member(clusteredBots[index]).status) != 'online':
+                                    botFile = serverMatch.get_botFile(clusteredBots[index])
+                                    for index in range(len(botDictionary)):
+                                        try:
+                                            os.startfile (botFile)
+                                            break
+                                        except Exception as e:
+                                            await client.send_message(client.get_channel(controlServerChannel), f'{alertRole.mention} Unable to restart {before.name}. Error has been logged to console.')
+                                            print('Unable to start bot file.')
+                                            print(e)
+                                            break
+                                else:
+                                    await client.send_message(client.get_channel(controlServerChannel), f'{alertRole.mention}' + f' Unable to find Bot {before.name} based on the ID provided. Is the Bot properly set up in the cluster?')
+                            except Exception as e:        
+                                print('A status or identification error has occurred.')
+                                print(e)
                         await client.change_presence(game=discord.Game(name='Cluster status: Active Node', status=discord.Status.online))
                         break
         # Case where the node is active, and is responsible for the bots.   
@@ -185,7 +225,6 @@ async def on_member_update(before, after):
                    print(e)
         else:
             pass
-    
 # When the node starts, it will check the status of the bots it is responsible for.
 # If the other node is active, it will wait for that node to come online.
 # If the other node does not come online within the alloted time, then it will take over as the active node then start the bots on its own.
@@ -234,6 +273,7 @@ async def on_ready():
                 wr.truncate()
                 wr.write(activeNodeCode)
                 wr.close()
+                print (f'{otherNode} has timed out. Switching to active node')
                 for index in range(len(clusteredBots)):
                     if str(client.get_server(controlServerID).get_member(clusteredBots[index]).status) == 'online':
                         pass
